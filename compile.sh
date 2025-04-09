@@ -50,7 +50,7 @@ if [[ "$1" == "configure" ]]; then
 fi
 
 function build_app () {
-    cd app; em++ -c app.cpp; cd ..
+    cd app; emcc -I../ffmpeg -c app.c; cd ..
 }
 
 if [[ "$1" == "app" ]]; then
