@@ -1,89 +1,39 @@
 #pragma once
 
-extern "C" {
-    #include <libavcodec/avcodec.h>
-    #include <libavformat/avformat.h>
-    #include <libavutil/imgutils.h>
-    #include <libavutil/avutil.h>
-    #include <libswscale/swscale.h>
-}
+#include <cstddef>
+#include <functional>
 
-#include <cstdint>
-#include <string>
-#include <map>
+namespace eweb{namespace player{
 
-namespace app{
+    /*
+        Example:
 
-    class stream_ctx {
-        public:
-            AVStream *stream;
-            AVCodec *codec;
-            AVCodecContext *codec_context;
-            AVCodecParameters *codec_params;
-            int type;
-            bool initialized;
+        initialize();
+        on_fragment_video ([](vfragment) { ... });
 
-            stream_ctx (int type, std::string const& name) :
-                type(type),
-                initialized(false),
-                name_(name)
-                { }
+        on_fragment_audio ([](afragment) { ... });
+        // TODO ???
+        on_fragment_sync ([](vfragment, afragment) { ... });
 
-            virtual ~stream_ctx ();
+    */
 
-            virtual void dump_info () = 0;
-
-        protected:
-            std::string name_;
+    struct fragment_t {
+        void *data;
+        size_t len;
     };
 
-    class video_stream_ctx final : public stream_ctx {
-        public:
-            video_stream_ctx () :
-                stream_ctx(AVMEDIA_TYPE_VIDEO, "video")
-                { }
+    using frame_clbck_t = std::function<void (fragment_t fragment)>;
 
-        virtual void dump_info () override;
-    };
+    using sync_clbck_t = std::function<void (fragment_t vfragment, fragment_t afragment)>;
 
-    class audio_stream_ctx final : public stream_ctx {
-        public:
-            audio_stream_ctx () :
-                stream_ctx(AVMEDIA_TYPE_AUDIO, "audio")
-                { }
+    void initialize () noexcept;
 
-        virtual void dump_info () override;
-    };
+    void push (void *data, size_t len) noexcept;
 
-    class player {
-        public:
-            struct error {
-                std::string msg;
-                uint32_t code;
-                error () = default;
-                error (std::string const& msg);
-                error (uint32_t code, std::string const& msg);
-            };
+    void on_fragment_video (frame_clbck_t const& clbck) noexcept;
 
-            player ();
-            ~player ();
+    void on_fragment_audio (frame_clbck_t const& clbck) noexcept;
 
-            bool from_source (std::string const& source);
-            bool initialize_streams ();
+    void on_fragment_sync (frame_clbck_t const& clbck) noexcept;
 
-            bool start_read_loop ();
-
-            error get_last_error ();
-
-        private:
-            AVFormatContext *format_ctx_;
-            std::map<int, stream_ctx*> streams_;
-            audio_stream_ctx audio_stream_ctx_;
-            video_stream_ctx video_stream_ctx_;
-            std::string source_;
-            error last_error_;
-
-            bool fail_ (std::string const& msg);
-    };
-
-}
+}}

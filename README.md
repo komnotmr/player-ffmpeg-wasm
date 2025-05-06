@@ -1,9 +1,11 @@
 # player-ffmpeg-wasm
 
-make configure
-make libffmpeg
-make install
+make ffmpeg_configure
+make ffmpeg_build
+make ffmpeg_install
 
-bear -- make tap # generating compile_commands.json
-or
-make tap
+make sdl_configure
+make sdl_build
+make sdl_install
+
+bear -- make tap_build
