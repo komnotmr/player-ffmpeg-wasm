@@ -27,11 +27,16 @@ export ffmpeg_lib:=$(ffmpeg_out)/lib
 
 .phony: configure
 configure:
-	cd ffmpeg && ./configure $(FFMPEG_COMMON_COMPONENTS) --prefix=$(ffmpeg_out)
+	cd ffmpeg && $(CONFIGURE) ./configure $(FFMPEG_COMMON_COMPONENTS) --prefix=$(ffmpeg_out)
 
 tap:
 	rm -rf ./test-app/*.o; rm -rf ./out/*.bin
 	$(CXX) -I$(ffmpeg_inc) -o out/test.bin test-app/app.cpp test-app/test.cpp $(ffmpeg_lib)/libswscale.a $(ffmpeg_lib)/libavformat.a $(ffmpeg_lib)/libavcodec.a $(ffmpeg_lib)/libavutil.a $(ffmpeg_lib)/libswresample.a -lz -lm
+
+.phony: libffmpeg
+libffmpeg:
+	cd ffmpeg && $(MAKE) -j4
+
 # $(CC) -I$(ffmpeg_inc) -o a.bin test.c $(ffmpeg_lib)/libavformat.a $(ffmpeg_lib)/libavcodec.a $(ffmpeg_lib)/libavutil.a $(ffmpeg_lib)/libswscale.a -lz -lm
 
 .phony: build clean install

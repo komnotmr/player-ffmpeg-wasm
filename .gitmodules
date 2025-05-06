@@ -1,3 +1,7 @@
 [submodule "ffmpeg"]
 	path = ffmpeg
 	url = https://github.com/FFmpeg/FFmpeg.git
+[submodule "sdl"]
+	path = SDL
+	url = https://github.com/libsdl-org/SDL.git
+	branch = release-3.2.x
