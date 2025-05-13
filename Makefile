@@ -54,6 +54,8 @@ ffmpeg_all: ffmpeg_configure ffmpeg_build ffmpeg_install
 
 ### SDL
 
+sdl_COMMON_COMPONENTS:=
+
 export sdl_dir:=$(root_dir)/SDL
 
 export sdl_out:=$(root_dir)/out

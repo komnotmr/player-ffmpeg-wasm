@@ -1,4 +1,5 @@
 #include "renderer.hpp"
+#include "SDL2/SDL_render.h"
 
 extern "C" {
     #include <SDL2/SDL.h>
@@ -8,8 +9,9 @@ extern "C" {
 
 namespace {
     static SDL_Window *window_ = nullptr;
-    static bool is_opened_ = false;
     static SDL_Renderer *renderer_ = nullptr;
+
+    static bool is_opened_ = false;
 }
 
 namespace eweb{namespace renderer{
@@ -17,7 +19,6 @@ namespace eweb{namespace renderer{
     bool initialize () noexcept {
 
         if (window_) {
-
             return true;
         }
 
@@ -50,7 +51,10 @@ namespace eweb{namespace renderer{
     }
 
     void deinitialize () noexcept {
+        SDL_DestroyRenderer(renderer_);
         SDL_DestroyWindow(window_);
+        window_ = nullptr;
+        renderer_ = nullptr;
     }
 
     bool loop () noexcept {
@@ -71,6 +75,10 @@ namespace eweb{namespace renderer{
         SDL_RenderPresent(renderer_);
 
         return true;
+    }
+
+    bool render (void *bytes, size_t len) noexcept {
+        return false;
     }
 
 }}
