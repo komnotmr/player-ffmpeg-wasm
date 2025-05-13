@@ -56,6 +56,6 @@ namespace eweb{namespace player{
     /**
     * sets callback which will be called on decoded and synced video and audio frames
     */
-    void on_fragment_sync (sync_clbck_t const& clbck) noexcept;
+    void on_fragment_sync (sync_clbck_t const& clbck) noexcept; // TODO
 
 }}

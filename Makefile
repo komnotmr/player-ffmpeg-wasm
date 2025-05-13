@@ -2,6 +2,22 @@
 
 export root_dir=$(shell pwd)
 
+export COMMON_CFLAGS := -Os
+
+ifeq ($(IS_WASM),Y)
+	CONFIGURE := emconfigure
+	MAKE := emmake make
+	CC := emcc
+	CXX := em++
+	RANLIB := emranlib
+endif
+
+export target
+
+.phony: dump
+dump:
+	echo "target=$(target)"
+
 ### FFMPEG
 
 FFMPEG_COMMON_COMPONENTS := --disable-doc \
@@ -26,6 +42,23 @@ FFMPEG_COMMON_COMPONENTS := --disable-doc \
     --enable-decoder=pcm_alaw \
     --enable-bsf=extract_extradata
 
+FFMPEG_CROSS_COMPILE_COMPONENTS :=
+
+ifeq ($(IS_WASM),Y)
+	FFMPEG_CROSS_COMPILE_COMPONENTS := --disable-x86asm \
+    --disable-asm \
+	--target-os=none  \
+	--arch=x86_32  \
+	--enable-cross-compile  \
+	--nm=emnm \
+	--ar=emar  \
+	--ranlib=emranlib \
+	--cc=emcc  \
+	--cxx=em++  \
+	--objcc=emcc  \
+	--dep-cc=emcc
+endif
+
 export ffmpeg_dir:=$(root_dir)/ffmpeg
 
 export ffmpeg_out:=$(root_dir)/out
@@ -34,8 +67,7 @@ export ffmpeg_lib:=$(ffmpeg_out)/lib
 
 .phony: ffmpeg_configure
 ffmpeg_configure: $(ffmpeg_dir) ffmpeg_clean
-	cd $(ffmpeg_dir) && $(CONFIGURE) ./configure $(FFMPEG_COMMON_COMPONENTS) --prefix=$(ffmpeg_out)
-
+	cd $(ffmpeg_dir) && $(CONFIGURE) ./configure --extra-cflags=$(COMMON_CFLAGS) $(FFMPEG_COMMON_COMPONENTS) $(FFMPEG_CROSS_COMPILE_COMPONENTS) --prefix=$(ffmpeg_out)
 
 .phony: ffmpeg_build
 ffmpeg_build: ffmpeg_configure
@@ -91,3 +123,24 @@ export tap_dir:=$(root_dir)/test-app
 tap_build:
 	rm -rf ./$(tap_dir)/*.o; rm -rf ./out/*.bin
 	$(CXX) -I$(ffmpeg_inc) -I$(sdl_inc) -o out/test.bin $(tap_dir)/*.cpp $(ffmpeg_lib)/libswscale.a $(ffmpeg_lib)/libavformat.a $(ffmpeg_lib)/libavcodec.a $(ffmpeg_lib)/libavutil.a $(ffmpeg_lib)/libswresample.a $(sdl_lib)/libSDL2.a -lz -lm
+
+
+### WASM library
+
+export wasm_dir:=$(root_dir)/wasm_src
+export wasm_out:=$(root_dir)/out/wasm
+
+.phony:
+wasm_clean:
+	rm -rf $(wasm_dir)/*.o; rm -rf $(wasm_out)/*
+
+.phony: wasm_build
+wasm_build: wasm_clean
+	mkdir -p $(wasm_out)
+	$(CXX) -I$(tap_dir) -I$(ffmpeg_inc) $(COMMON_CFLAGS) \
+		$(wasm_dir)/wasm.cpp $(tap_dir)/player.cpp \
+		$(ffmpeg_lib)/libswscale.a $(ffmpeg_lib)/libavformat.a $(ffmpeg_lib)/libavcodec.a $(ffmpeg_lib)/libavutil.a $(ffmpeg_lib)/libswresample.a \
+		-o eweb_player.js \
+		-sMODULARIZE \
+		-sEXPORTED_RUNTIME_METHODS=ccall
+	mv ./eweb_player* $(wasm_out)/
