@@ -2,7 +2,7 @@
 
 export root_dir=$(shell pwd)
 
-export COMMON_CFLAGS := -Os
+export COMMON_CFLAGS := -g
 
 ifeq ($(IS_WASM),Y)
 	CONFIGURE := emconfigure
@@ -33,12 +33,10 @@ FFMPEG_COMMON_COMPONENTS := --disable-doc \
     --enable-demuxer=hevc \
     --enable-demuxer=h264 \
     --enable-demuxer=pcm_s16le \
-    --enable-demuxer=timestamp_inserter \
     --enable-demuxer=mpegts \
     --enable-parser=h264 \
     --enable-parser=hevc \
     --enable-decoder=pcm_s16le \
-    --enable-decoder=mp2 \
     --enable-decoder=pcm_alaw \
     --enable-bsf=extract_extradata
 
@@ -134,13 +132,52 @@ export wasm_out:=$(root_dir)/out/wasm
 wasm_clean:
 	rm -rf $(wasm_dir)/*.o; rm -rf $(wasm_out)/*
 
-.phony: wasm_build
-wasm_build: wasm_clean
+.phony: wasm_build1
+wasm_build1: wasm_clean
 	mkdir -p $(wasm_out)
 	$(CXX) -I$(tap_dir) -I$(ffmpeg_inc) $(COMMON_CFLAGS) \
-		$(wasm_dir)/wasm.cpp $(tap_dir)/player.cpp \
+		$(tap_dir)/player.cpp $(wasm_dir)/wasm.cpp \
 		$(ffmpeg_lib)/libswscale.a $(ffmpeg_lib)/libavformat.a $(ffmpeg_lib)/libavcodec.a $(ffmpeg_lib)/libavutil.a $(ffmpeg_lib)/libswresample.a \
 		-o eweb_player.js \
 		-sMODULARIZE \
 		-sEXPORTED_RUNTIME_METHODS=ccall
 	mv ./eweb_player* $(wasm_out)/
+
+.phony: wasm_build2
+wasm_build2: wasm_clean
+	mkdir -p $(wasm_out)
+	$(CXX) -I$(tap_dir) -I$(ffmpeg_inc) $(COMMON_CFLAGS) \
+		$(wasm_dir)/wasm.cpp $(tap_dir)/player.cpp \
+		$(ffmpeg_lib)/libswscale.a $(ffmpeg_lib)/libavformat.a $(ffmpeg_lib)/libavcodec.a $(ffmpeg_lib)/libavutil.a $(ffmpeg_lib)/libswresample.a \
+		-o eweb_player.html \
+		-sMODULARIZE --shell-file=$(wasm_dir)/example.html \
+		-sEXPORT_NAME='"ewebModule"' \
+		-sEXPORTED_RUNTIME_METHODS=cwrap
+	mv ./eweb_player* $(wasm_out)/
+
+.phony: wasm_build3
+wasm_build3: wasm_clean
+	mkdir -p $(wasm_out)
+	$(CXX) -I$(tap_dir) -I$(ffmpeg_inc) $(COMMON_CFLAGS) \
+		$(wasm_dir)/wasm.cpp $(tap_dir)/player.cpp \
+		$(ffmpeg_lib)/libswscale.a $(ffmpeg_lib)/libavformat.a $(ffmpeg_lib)/libavcodec.a $(ffmpeg_lib)/libavutil.a $(ffmpeg_lib)/libswresample.a \
+		-o eweb_player.html \
+		--shell-file=$(wasm_dir)/template.html \
+		-sEXPORTED_RUNTIME_METHODS=cwrap
+	mv ./eweb_player* $(wasm_out)/
+
+.phony: wasm_build4
+wasm_build4: wasm_clean
+	mkdir -p $(wasm_out)
+	$(CXX) -I$(tap_dir) -I$(ffmpeg_inc) $(COMMON_CFLAGS) \
+		-sNO_DISABLE_EXCEPTION_CATCHING\
+		$(wasm_dir)/wasm.cpp $(tap_dir)/player.cpp \
+		$(ffmpeg_lib)/libswscale.a $(ffmpeg_lib)/libavformat.a $(ffmpeg_lib)/libavcodec.a $(ffmpeg_lib)/libavutil.a $(ffmpeg_lib)/libswresample.a \
+		-lembind \
+		-o eweb_player.html \
+		--shell-file=$(wasm_dir)/template.html
+	mv ./eweb_player* $(wasm_out)/
+
+.phony: wasm_run
+wasm_run:
+	emrun --no-browser $(wasm_out)/eweb_player.html

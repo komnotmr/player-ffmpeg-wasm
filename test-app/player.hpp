@@ -3,19 +3,29 @@
 #include <cstddef>
 #include <functional>
 
+#include <emscripten.h>
+#include <emscripten/bind.h>
+
 namespace eweb{namespace player{
+
+    void debug (bool on_off); 
 
     /**
     *  audio/video data
     */
     struct fragment_t {
-        void *data;
+        uint8_t *data;
         size_t len;
     };
 
     using frame_clbck_t = std::function<void (fragment_t fragment)>;
 
     using sync_clbck_t = std::function<void (fragment_t vfragment, fragment_t afragment)>;
+
+    /**
+    * call clbck
+    */
+    void call_clbck_by_name (std::string const& clbck_name);
 
     /**
     * initialize library (ffmpeg, etc...)

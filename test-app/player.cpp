@@ -1,10 +1,6 @@
-#include <cmath>
+#include <cstdint>
 #include <functional>
 #include <vector>
-#include <mutex>
-#include <condition_variable>
-#include <thread>
-#include <atomic>
 #include <iostream>
 #include <cstring>
 
@@ -17,17 +13,24 @@ extern "C" {
 #include <libswresample/swresample.h>
 }
 
-#define SLOG(...) do { std::cout << __VA_ARGS__ << std::endl; } while (0)
+#include "player.hpp"
+
+namespace {
+    static bool is_debug_enabled = false;
+}
+
+#define SLOG(...) do { std::cout << __FILE__ << ":" << __LINE__ << " " << __VA_ARGS__ << std::endl; } while (0)
+
+#define DLOG(...) do { if (is_debug_enabled) { std::cout << __FILE__ << ":" << __LINE__ << " "  << __VA_ARGS__ << std::endl; }} while (0)
 
 namespace eweb{namespace player{
 
-struct fragment_t {
-    void *data;
-    size_t len;
-};
+static emscripten::val c_;
 
-using frame_clbck_t = std::function<void(fragment_t fragment)>;
-using sync_clbck_t = std::function<void(fragment_t vfragment, fragment_t afragment)>;
+void debug (bool on_off) {
+    SLOG("debug:(" << on_off << ")");
+    is_debug_enabled = on_off;
+}
 
 static AVFormatContext *fmt_ctx = nullptr;
 static AVIOContext *avio_ctx = nullptr;
@@ -42,18 +45,35 @@ static AVStream *audio_stream = nullptr;
 static std::vector<uint8_t> buffer; // buffer for pushed data
 static size_t read_pos = 0;         // current reading position inside buffer
 
-static frame_clbck_t video_callback = nullptr;
-static frame_clbck_t audio_callback = nullptr;
-static sync_clbck_t sync_callback = nullptr;
+static frame_clbck_t video_callback = [](fragment_t frag){(void)frag; SLOG("default video callback called");};
+static frame_clbck_t audio_callback = [](fragment_t frag){(void)frag; SLOG("default audio callback called");};
+static sync_clbck_t sync_callback = [](fragment_t frag_a, fragment_t frag_b){(void)frag_a; (void)frag_b; SLOG("default sync callback");};
 
 static SwsContext *sws_ctx = nullptr;
 static SwrContext *swr_ctx = nullptr;
 
-static std::mutex mtx;
+void call_clbck_by_name (std::string const& name) {
+    std::vector<uint8_t> vec = {1,2,3, 5, 6, 7, 8};
+    if (name == "audio" || name == "a") {
+        audio_callback(fragment_t{.data = vec.data(), .len = vec.size()});
+        return;
+    }
+    if (name == "video" || name == "v") {
+        video_callback(fragment_t{.data = vec.data(), .len = vec.size()});
+        return;
+    }
+    if (name == "both" || name == "b") {
+        audio_callback(fragment_t{.data = vec.data(), .len = vec.size()});
+        video_callback(fragment_t{.data = vec.data(), .len = vec.size()});
+        return;
+    }
+    SLOG("invalid clbck name '" << name << "', availible: 'audio'(a), 'video'(v), 'both'(b)");
+
+}
 
 // Custom AVIO read callback to read from our internal buffer
 static int read_packet(void *opaque, uint8_t *buf, int buf_size) {
-    std::lock_guard<std::mutex> lock(mtx);
+    DLOG("read packet");
     size_t available = buffer.size() - read_pos;
     if (available == 0)
         return AVERROR_EOF;
@@ -66,7 +86,7 @@ static int read_packet(void *opaque, uint8_t *buf, int buf_size) {
 
 // Seek callback for AVIOContext
 static int64_t seek(void *opaque, int64_t offset, int whence) {
-    std::lock_guard<std::mutex> lock(mtx);
+    DLOG("seek: offset(" << offset << ") whence(" << whence <<")");
 
     size_t new_pos = 0;
     switch (whence) {
@@ -93,6 +113,7 @@ static int64_t seek(void *opaque, int64_t offset, int whence) {
 }
 
 void initialize() noexcept {
+    DLOG("initialize");
     av_log_set_level(AV_LOG_DEBUG);
     // av_log_set_level(AV_LOG_QUIET);
 
@@ -136,7 +157,7 @@ void initialize() noexcept {
 }
 
 void deinitialize() noexcept {
-    std::lock_guard<std::mutex> lock(mtx);
+    DLOG("deinitialize");
 
     if (fmt_ctx) {
         avformat_close_input(&fmt_ctx);
@@ -168,22 +189,23 @@ void deinitialize() noexcept {
 }
 
 void on_fragment_video(frame_clbck_t const& clbck) noexcept {
-    std::lock_guard<std::mutex> lock(mtx);
+    DLOG("on_fragment_video");
     video_callback = clbck;
 }
 
 void on_fragment_audio(frame_clbck_t const& clbck) noexcept {
-    std::lock_guard<std::mutex> lock(mtx);
+    DLOG("on_fragment_audio");
     audio_callback = clbck;
+    clbck({.data = nullptr, .len = 0});
 }
 
 void on_fragment_sync(sync_clbck_t const& clbck) noexcept {
-    std::lock_guard<std::mutex> lock(mtx);
+    DLOG("on_fragment_sync");
     sync_callback = clbck;
 }
 
 void push(void *data, size_t len) noexcept {
-    std::lock_guard<std::mutex> lock(mtx);
+    DLOG("push");
     // Append incoming data to buffer
     uint8_t* pData = static_cast<uint8_t*>(data);
     buffer.insert(buffer.end(), pData, pData + len);
@@ -191,6 +213,7 @@ void push(void *data, size_t len) noexcept {
 
 // Helper to open format context from buffer
 static bool open_format_context() {
+    DLOG("open_format_context");
     // Allocate buffer for AVIOContext
     constexpr int avio_buffer_size = 4096;
     
@@ -339,6 +362,7 @@ static bool open_format_context() {
 
 // Helper to decode a packet and call callbacks
 static void decode_packet(AVPacket* pkt) {
+    DLOG("decode_packet");
     int ret;
 
     if (pkt->stream_index == video_stream_idx && video_dec_ctx) {
@@ -378,7 +402,6 @@ static void decode_packet(AVPacket* pkt) {
 
             // Call video callback
             {
-                std::lock_guard<std::mutex> lock(mtx);
                 if (video_callback)
                     video_callback(frag);
 
@@ -441,7 +464,6 @@ static void decode_packet(AVPacket* pkt) {
             fragment_t frag{ out_buffer, static_cast<size_t>(converted_samples*out_channels*av_get_bytes_per_sample(AV_SAMPLE_FMT_S16)) };
 
             {
-                std::lock_guard<std::mutex> lock(mtx);
                 if(audio_callback)
                     audio_callback(frag);
 
@@ -460,7 +482,7 @@ static void decode_packet(AVPacket* pkt) {
 }
 
 void process_queue() noexcept {
-//    std::lock_guard<std::mutex> lock(mtx);
+    DLOG("process_queue");
    // If format context is not opened yet but we have some data - try open it
    if (!fmt_ctx && !buffer.empty()) {
        read_pos=0; // reset reading position before opening
@@ -503,7 +525,7 @@ void process_queue() noexcept {
 }
 
 bool seek_to_bytes(size_t bytes) noexcept {
-   std::lock_guard<std::mutex> lock(mtx);
+   DLOG("seek_to_bytes: bytes(" << bytes << ")");
 
    // Check bounds
    if(bytes>=buffer.size())

@@ -15,3 +15,7 @@ bear -- make tap_build # compile_commands.json
 IS_WASM=Y make ffmpeg_clean
 IS_WASM=Y make ffmpeg_install
 IS_WASM=Y bear -- make wasm_build # compile_commands.json
+
+## last successfull variant
+1. debug chrome: EMCC_DEBUG=1 IS_WASM=Y make wasm_build4
+2. prod firefox: IS_WASM=Y make wasm_build4 && make wasm_run

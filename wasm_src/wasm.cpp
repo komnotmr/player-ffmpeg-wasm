@@ -1,46 +1,66 @@
 #include "../test-app/player.hpp"
-#include <emscripten.h> // TODO
 
-extern "C" {
+#include <emscripten.h>
+#include <emscripten/bind.h>
 
-    typedef void (*clbck_t)(void *data, size_t len);
+#include <functional>
+#include <iostream>
+#include <vector>
+#include <cstdint>
 
-    EMSCRIPTEN_KEEPALIVE
-    void initialize () noexcept {
-        eweb::player::initialize();
+namespace {
+
+    /**
+        Wrappers for interact with JS from C++
+    */
+
+    static void wr_push (emscripten::val arr) {
+        auto vec = emscripten::vecFromJSArray<uint8_t>(arr);
+        eweb::player::push(vec.data(), vec.size());
     }
 
-    EMSCRIPTEN_KEEPALIVE
-    void deinitialize () noexcept {
-        eweb::player::deinitialize();
-    }
+    static void wr_clbck_bind_(
+        emscripten::val &js_clbck,
+        std::function<void (eweb::player::frame_clbck_t const&)> const& player_clbck_setter
+    ) {
+        player_clbck_setter([js_clbck](eweb::player::fragment_t frag) {
+            std::cout << "call clbck len(" << frag.len << ")" << std::endl;
+            auto vec = std::vector<uint8_t>();
+            for (int i = 0; i < frag.len; i++) {
+                vec.push_back(frag.data[i]);
+            }
 
-    EMSCRIPTEN_KEEPALIVE
-    void push (void *data, size_t len) noexcept {
-        eweb::player::push(data, len);
-    }
-
-    EMSCRIPTEN_KEEPALIVE
-    void process_queue () noexcept {
-        eweb::player::process_queue();
-    }
-
-    EMSCRIPTEN_KEEPALIVE
-    int seek_to_bytes (size_t bytes) noexcept {
-        return eweb::player::seek_to_bytes(bytes);
-    }
-
-    EMSCRIPTEN_KEEPALIVE
-    void on_fragment_video (clbck_t clbck) noexcept {
-        eweb::player::on_fragment_video([clbck](eweb::player::fragment_t vfragment){
-            clbck(vfragment.data, vfragment.len);
+            js_clbck.call<void>("call", 0, (emscripten::val::array(std::move(vec))));
         });
     }
 
-    EMSCRIPTEN_KEEPALIVE
-    void on_fragment_audio (clbck_t clbck) noexcept {
-        eweb::player::on_fragment_audio([clbck](eweb::player::fragment_t vfragment){
-            clbck(vfragment.data, vfragment.len);
-        });
+    static void wr_clbck_bind_video (emscripten::val callback) {
+        wr_clbck_bind_(
+            callback,
+            eweb::player::on_fragment_video
+        );
     }
+
+    static void wr_clbck_bind_audio (emscripten::val callback) {
+        wr_clbck_bind_(
+            callback,
+            eweb::player::on_fragment_audio);
+    }
+
+}
+
+EMSCRIPTEN_BINDINGS(eweb_module) {
+    emscripten::function("debug", &eweb::player::debug);
+
+    emscripten::function("initialize", &eweb::player::initialize);
+    emscripten::function("deinitialize", &eweb::player::deinitialize);
+
+    emscripten::function("push", &wr_push);
+
+    emscripten::function("process_queue", &eweb::player::process_queue);
+
+    emscripten::function("on_fragment_video", &wr_clbck_bind_video);
+    emscripten::function("on_fragment_audio", &wr_clbck_bind_audio);
+
+    emscripten::function("call_clbck_by_name", &eweb::player::call_clbck_by_name); // for test only
 }
