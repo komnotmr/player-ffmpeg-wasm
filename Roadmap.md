@@ -1,6 +1,9 @@
-1. Make app with SDL renderer, but needed API
-2. Remove renderer
-3. Optimize it
-4. Compile to WASM
-5. Add passing data through API to app
-6. Add render on browser side (WEB GL)
+1. Самописный скрипт загрузки wasm-модуля
+2. Шаблон с канвас
+3. Веб-воркер
+4. Передача данных web-socket -> web-worker -> wasm -> web-worker -> renderer
+5. Renderer Canvas (минимальный)
+6. Renderer WebGL (минимальный)
+7. Audio Context
+8. Синхронизация
+9. Уменьшение размера WASM-файла за счёт configure и возможно отказа от embind

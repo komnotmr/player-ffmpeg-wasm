@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 
 #include <emscripten.h>
@@ -9,6 +10,16 @@
 namespace eweb{namespace player{
 
     void debug (bool on_off); 
+
+    struct debug_info_t {
+        uint32_t queue_size = 0;
+        uint32_t count_frames_video = 0;
+        uint32_t count_frames_audio = 0;
+        uint32_t width = 0;
+        uint32_t height = 0;
+    };
+
+    std::string dump_debug_info ();
 
     /**
     *  audio/video data

@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <functional>
+#include <string>
 #include <vector>
 #include <iostream>
 #include <cstring>
@@ -25,7 +26,19 @@ namespace {
 
 namespace eweb{namespace player{
 
-static emscripten::val c_;
+static debug_info_t debug_info_;
+
+std::string dump_debug_info () {
+    std::string res = "{";
+    #define kv__(k,v) res += ("\"" k "\":")  + std::to_string(v)
+    kv__("queue_size", debug_info_.queue_size); res += ",";
+    kv__("count_frames_video", debug_info_.count_frames_video); res += ",";
+    kv__("count_frames_audio", debug_info_.count_frames_audio); res += ",";
+    kv__("width", debug_info_.width); res += ",";
+    kv__("height", debug_info_.height);
+    res += "}";
+    return res;
+}
 
 void debug (bool on_off) {
     SLOG("debug:(" << on_off << ")");
@@ -205,10 +218,11 @@ void on_fragment_sync(sync_clbck_t const& clbck) noexcept {
 }
 
 void push(void *data, size_t len) noexcept {
-    DLOG("push");
+    DLOG("push into buffer " << len << " bytes, " << "vec.size() == " << buffer.size() << " bytes");
     // Append incoming data to buffer
     uint8_t* pData = static_cast<uint8_t*>(data);
     buffer.insert(buffer.end(), pData, pData + len);
+    DLOG("\tafter push vec.size() == " << buffer.size() << " bytes");
 }
 
 // Helper to open format context from buffer
@@ -397,13 +411,17 @@ static void decode_packet(AVPacket* pkt) {
                 dst_data,
                 dst_linesize
             );
+            debug_info_.width = frame->width;
+            debug_info_.height = frame->height;
 
             fragment_t frag{ rgb_buffer, static_cast<size_t>(num_bytes) };
 
             // Call video callback
             {
-                if (video_callback)
+                if (video_callback) {
+                    debug_info_.count_frames_video++;
                     video_callback(frag);
+                }
 
                 // If sync callback is set and we have last audio frame with matching PTS call it here
                 // For simplicity this example does not store last audio frame for sync.
@@ -464,8 +482,10 @@ static void decode_packet(AVPacket* pkt) {
             fragment_t frag{ out_buffer, static_cast<size_t>(converted_samples*out_channels*av_get_bytes_per_sample(AV_SAMPLE_FMT_S16)) };
 
             {
-                if(audio_callback)
+                if (audio_callback) {
+                    debug_info_.count_frames_audio++;
                     audio_callback(frag);
+                }
 
                // As above for sync callback: this example does not implement full sync
 
@@ -482,9 +502,11 @@ static void decode_packet(AVPacket* pkt) {
 }
 
 void process_queue() noexcept {
-    DLOG("process_queue");
+    DLOG("process_queue " << buffer.size() << " bytes");
+
    // If format context is not opened yet but we have some data - try open it
    if (!fmt_ctx && !buffer.empty()) {
+        DLOG("fmt_ctx is nullptr amd buffer is not empty");
        read_pos=0; // reset reading position before opening
        if (!open_format_context()) {
            // Could not open format context yet - maybe need more data pushed
@@ -494,7 +516,7 @@ void process_queue() noexcept {
    }
 
    if (!fmt_ctx) {
-        SLOG("no input");
+       SLOG("no input");
        return; // no input
    }
 

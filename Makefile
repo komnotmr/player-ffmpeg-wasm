@@ -82,37 +82,6 @@ ffmpeg_clean:
 .phony: ffmpeg_all
 ffmpeg_all: ffmpeg_configure ffmpeg_build ffmpeg_install
 
-### SDL
-
-sdl_COMMON_COMPONENTS:=
-
-export sdl_dir:=$(root_dir)/SDL
-
-export sdl_out:=$(root_dir)/out
-export sdl_inc:=$(sdl_out)/include
-export sdl_lib:=$(sdl_out)/lib
-
-.phony: sdl_configure
-sdl_configure: $(sdl_dir)
-	cd $(sdl_dir) && $(CONFIGURE) ./configure $(sdl_COMMON_COMPONENTS) --prefix=$(sdl_out)
-
-
-.phony: sdl_build
-sdl_build: sdl_configure
-	cd $(sdl_dir) && $(MAKE) -j4
-
-.phony: sdl_install 
-sdl_install: sdl_build
-	$(MAKE) -C $(sdl_dir) install
-	cp $(sdl_dir)/include/* $(sdl_inc)/
-
-.phony: sdl_clean
-sdl_clean:
-	$(MAKE) -C $(sdl_dir) clean
-
-.phony: sdl_all
-sdl_all: sdl_configure sdl_build sdl_install
-
 ### TEST APP
 
 export tap_dir:=$(root_dir)/test-app
@@ -132,52 +101,26 @@ export wasm_out:=$(root_dir)/out/wasm
 wasm_clean:
 	rm -rf $(wasm_dir)/*.o; rm -rf $(wasm_out)/*
 
-.phony: wasm_build1
-wasm_build1: wasm_clean
+.phony: wasm_build
+wasm_build: wasm_clean
 	mkdir -p $(wasm_out)
 	$(CXX) -I$(tap_dir) -I$(ffmpeg_inc) $(COMMON_CFLAGS) \
-		$(tap_dir)/player.cpp $(wasm_dir)/wasm.cpp \
-		$(ffmpeg_lib)/libswscale.a $(ffmpeg_lib)/libavformat.a $(ffmpeg_lib)/libavcodec.a $(ffmpeg_lib)/libavutil.a $(ffmpeg_lib)/libswresample.a \
-		-o eweb_player.js \
-		-sMODULARIZE \
-		-sEXPORTED_RUNTIME_METHODS=ccall
-	mv ./eweb_player* $(wasm_out)/
-
-.phony: wasm_build2
-wasm_build2: wasm_clean
-	mkdir -p $(wasm_out)
-	$(CXX) -I$(tap_dir) -I$(ffmpeg_inc) $(COMMON_CFLAGS) \
-		$(wasm_dir)/wasm.cpp $(tap_dir)/player.cpp \
-		$(ffmpeg_lib)/libswscale.a $(ffmpeg_lib)/libavformat.a $(ffmpeg_lib)/libavcodec.a $(ffmpeg_lib)/libavutil.a $(ffmpeg_lib)/libswresample.a \
-		-o eweb_player.html \
-		-sMODULARIZE --shell-file=$(wasm_dir)/example.html \
-		-sEXPORT_NAME='"ewebModule"' \
-		-sEXPORTED_RUNTIME_METHODS=cwrap
-	mv ./eweb_player* $(wasm_out)/
-
-.phony: wasm_build3
-wasm_build3: wasm_clean
-	mkdir -p $(wasm_out)
-	$(CXX) -I$(tap_dir) -I$(ffmpeg_inc) $(COMMON_CFLAGS) \
-		$(wasm_dir)/wasm.cpp $(tap_dir)/player.cpp \
-		$(ffmpeg_lib)/libswscale.a $(ffmpeg_lib)/libavformat.a $(ffmpeg_lib)/libavcodec.a $(ffmpeg_lib)/libavutil.a $(ffmpeg_lib)/libswresample.a \
-		-o eweb_player.html \
-		--shell-file=$(wasm_dir)/template.html \
-		-sEXPORTED_RUNTIME_METHODS=cwrap
-	mv ./eweb_player* $(wasm_out)/
-
-.phony: wasm_build4
-wasm_build4: wasm_clean
-	mkdir -p $(wasm_out)
-	$(CXX) -I$(tap_dir) -I$(ffmpeg_inc) $(COMMON_CFLAGS) \
-		-sNO_DISABLE_EXCEPTION_CATCHING\
 		$(wasm_dir)/wasm.cpp $(tap_dir)/player.cpp \
 		$(ffmpeg_lib)/libswscale.a $(ffmpeg_lib)/libavformat.a $(ffmpeg_lib)/libavcodec.a $(ffmpeg_lib)/libavutil.a $(ffmpeg_lib)/libswresample.a \
 		-lembind \
-		-o eweb_player.html \
-		--shell-file=$(wasm_dir)/template.html
-	mv ./eweb_player* $(wasm_out)/
+		-o decoder.js \
+		--no-entry \
+		-sMODULARIZE=1
+
+.phony: wasm_install
+wasm_install:
+	mv decoder.wasm decoder.js $(wasm_out)
+	cp  $(wasm_dir)/main.js $(wasm_dir)/worker.js $(wasm_dir)/template.html $(wasm_out)
 
 .phony: wasm_run
 wasm_run:
 	emrun --no-browser $(wasm_out)/eweb_player.html
+
+.phony: wasm_run2
+wasm_run2:
+	cd out/wasm && python3 -m http.server 8080

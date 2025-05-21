@@ -30,9 +30,9 @@
 
     <div class="emscripten_border">
         <span id='player_controls'>
-            <span><input id="url" value="ws://0.0.0.0:8899"/></span>
+            <span><input id="url" value="ws://0.0.0.0:8082"/></span>
             <span><button id="run" onclick="onclickrun()">Run </button></span>
-
+            <span><button id="stop" onclick="onclickstop()">Stop </button></span>
         </span>
     </div>
     <textarea id="output" rows="8"></textarea>
@@ -107,30 +107,63 @@
         };
       };
 
+      function onclickstop () {
+        window.ws__?.close();
+        window.ws__ = null;
+      }
+
       function onclickrun () {
         console.log('running');
+
+        Module.debug(true);
+        Module.initialize();
+
         const url = document.getElementById('url').value;
+        
+        const canvas = document.getElementById('canvas');
+        const canvas_ctx = canvas.getContext('2d');
         const ws = new WebSocket(url);
-        ws.onopen((ev_o) => {
+        window.ws__ = ws;
+        ws.onmessage = (async (ev_m) => {
+          // window.X = ev_m;
+          // ws.close();
+          // return;
+          const rb = ev_m.data.stream();
+          for await (const chunk of rb) {
+            Module.push(chunk); // TODO
+            Module.process_queue();
+          }
+          // const buffer = await ev_m.data.arrayBuffer();
+          // console.log(buffer);
+          // Module.push([1,2,3,4,5,6])
+          // Module.process_queue();
+        });
 
-          Module.debug();
-          Module.initialize();
+        ws.onclose = ((ev_c) => {
+          Module.deinitialize();
+        });
 
-          Module.on_fragment_video(() => {
-            console.log('js: got video frame');
+        ws.onopen = ((ev_o) => {
+
+
+
+          Module.on_fragment_video(video_frame => {
+            setTimeout(() => {
+              const img = canvas_ctx.createImageData(video_frame.width, video_frame.height);
+              // [r0, g0, b0, a0, r1, g1, b1, a1]
+              for (let i = 0; i < video_frame.bytes.length; i++) {
+                img.data[i] = video_frame.bytes[i]; // raw copy
+              }
+              canvas_ctx.putImageData(img, 0, 0);
+              console.log('js: putImageData');
+            }, 0);
           });
 
           Module.on_fragment_video(() => {
             console.log('js: got audio frame');
           });
 
-          ws.onmessage((ev_m) => {
-            Module.push([]); // TODO
-          });
-
-          ws.onclose((ev_c) => {
-            Module.deinitialize();
-          });
+ 
 
         });
 

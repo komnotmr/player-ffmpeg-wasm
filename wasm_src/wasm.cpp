@@ -63,4 +63,5 @@ EMSCRIPTEN_BINDINGS(eweb_module) {
     emscripten::function("on_fragment_audio", &wr_clbck_bind_audio);
 
     emscripten::function("call_clbck_by_name", &eweb::player::call_clbck_by_name); // for test only
+    emscripten::function("dump_debug", &eweb::player::dump_debug_info);
 }
